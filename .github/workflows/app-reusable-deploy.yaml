@@ -1,0 +1,77 @@
+name: Deploy To Environment
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      app_name:
+        required: true
+        type: string
+      app_version:
+        required: true
+        type: string
+    secrets:
+      aws_iam_role_arn:
+        required: true
+      region:
+        required: true
+      image_registry:
+          required: true
+      image_repository:
+        required: true
+      cluster_name:
+        required: true
+
+jobs:
+  Deploy-To-Environment:
+    
+    name: Deploy To Environment ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+
+    steps:
+
+    - name: Download Artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.app_name }}
+        path: .
+    
+    - name: Load Docker Image
+      run: |
+        gunzip -c ${{ inputs.app_name }}-${{ inputs.app_version }}.tar.gz | docker load
+    
+    - name: Configure AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+          role-to-assume: ${{ secrets.aws_iam_role_arn }}
+          aws-region: ${{ secrets.region }}
+    
+    - name: Login To Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+    
+    - name: Push Image To ECR
+      run: |
+        docker tag ${{ inputs.app_name }}:${{ inputs.app_version }} ${{ secrets.image_registry }}/${{ secrets.image_repository }}:${{ inputs.app_version }}
+        docker push ${{ secrets.image_registry }}/${{ secrets.image_repository }}:${{ inputs.app_version }}
+    
+    - name: Checkout Helm Chart
+      uses: actions/checkout@v4
+      with:
+        sparse-checkout: |
+          helm
+    
+    - name: Helm Release
+      uses: bitovi/github-actions-deploy-eks-helm@v1.2.9
+      env:
+        REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+      with:
+        aws-region: ${{ secrets.region }}
+        cluster-name: ${{ secrets.cluster_name   }}
+        name: ${{ inputs.app_name }}
+        values: image.repository=${{ secrets.image_registry }}/${{ secrets.image_repository }},image.tag=${{ inputs.app_version }},serviceAccount.name=${{ inputs.app_name }}
+        namespace: ${{ inputs.app_name }}

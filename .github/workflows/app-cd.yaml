@@ -1,0 +1,88 @@
+name: Deploy Application
+
+permissions:
+  contents: read
+  security-events: write
+  id-token: write
+
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  Build:
+    uses: ./.github/workflows/app-reusable-ci.yaml
+
+  Build-Container-Image:
+    name: Build Container Image
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      APP_NAME: app
+
+    steps:
+    
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Build Docker Image
+      run: |
+        docker build --tag ${{ env.APP_NAME }}:${{ github.sha }} .
+    
+    - name: Run Trivy Vulnerability Scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: "${{ env.APP_NAME }}:${{ github.sha }}"
+        format: 'table'
+        exit-code: '0'
+        ignore-unfixed: true
+        vuln-type: 'os,library'
+        severity: 'CRITICAL,HIGH'
+    
+    - name: Save Docker Image As Artifact
+      run: |
+        docker save ${{ env.APP_NAME }}:${{ github.sha }} | gzip > ${{ env.APP_NAME }}-${{ github.sha }}.tar.gz
+    
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ env.APP_NAME }}
+        path: ${{ env.APP_NAME }}-${{ github.sha }}.tar.gz
+
+
+  Deploy-Stage:
+    needs: Build-Container-Image
+    uses: ./.github/workflows/app-reusable-deploy.yaml
+    with:
+      environment: Stage
+      app_name: app
+      app_version: ${{ github.sha }}
+    secrets:
+      aws_iam_role_arn: ${{ secrets.AWS_IAM_ROLE_ARN }}
+      region: ${{ secrets.REGION }}
+      image_registry: ${{ secrets.IMAGE_REGISTRY }}
+      image_repository: ${{ secrets.IMAGE_REPOSITORY }}
+      cluster_name: ${{ secrets.CLUSTER_NAME }}
+
+  Deploy-Prod:
+    if: false
+    needs: Deploy-Stage
+    uses: ./.github/workflows/app-reusable-deploy.yaml
+    with:
+      environment: Prod
+      app_name: app
+      app_version: ${{ github.sha }}
+    secrets:
+      aws_iam_role_arn: ${{ secrets.AWS_IAM_ROLE_ARN }}
+      region: ${{ secrets.REGION }}
+      image_registry: ${{ secrets.IMAGE_REGISTRY }}
+      image_repository: ${{ secrets.IMAGE_REPOSITORY }}
+      cluster_name: ${{ secrets.CLUSTER_NAME }}
+
+  
+
