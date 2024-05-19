@@ -1,5 +1,5 @@
 # Overview
-This is a sample web application created using `start.spring.io tool`. This app only has one endpoint `/` which returns a welcome message.
+This is a sample web application created using `start.spring.io` tool. This app only has one endpoint `/` which returns a welcome message.
 
 ## Run locally
 The app comes with a Dockerfile and can be tested locally easily. The only prerequiste to run this app on local is Docker CLI / Desktop installed. The image is build using **multi stage build** and **alpine** base images for optimal image size.
@@ -35,7 +35,7 @@ The deployment is conigured to run when there is a PR merged to master. It also 
 
 Since I have used reusable workflow, the first thing that runs here is also the `app-reusable-ci.yaml` file.
 
-After that it starts deployment to `Stage` environment. Because I have configured Github environments in the above steps, here the flow will be paused I until I approve it.
+After that it starts deployment to `Stage` environment. Because I have configured Github environments with required approvals in the above steps, here the flow will be paused I until I approve it.
 
 The steps that runs the deployment are written in `app-reusable-deploy.yaml` file. The purpose of making it also reusable is that it works for both `Prod` and `Stage` environments both having differnt variables / secrets.
 
@@ -46,7 +46,7 @@ Also notice that the acutal building of container image that is to be deployed i
 ```
 
 ## Kubernetes Manifests
-The applicaiton is very simple hence no complex Kubernetes objects are created of it. But it can be extinsble provided that I have utilized HELM to package the application. The following objects are created in the `app` namespace.
+The applicaiton is very simple hence no complex Kubernetes objects are created of it. But it can be extensible provided that I have utilized HELM to package the application. The following objects are created in the `app` namespace.
 
 ```
 kubectl get all -n app
